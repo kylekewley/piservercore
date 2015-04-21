@@ -1,0 +1,7 @@
+[package]
+name = "piservercore"
+version = "0.0.1"
+authors = ["Kyle Kewley <kylek61294@gmail.com>"]
+[dependencies]
+capnp = "*"
+capnpc = "*"
