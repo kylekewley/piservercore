@@ -7,7 +7,7 @@
 extern crate capnp;
 
 
-use std::io::{self, Write, Read, Result, Error, ErrorKind};
+use std::io::{self, Write, Read, Result, Error, ErrorKind, BufReader, BufRead, BufWriter};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::vec::Vec;
@@ -15,7 +15,6 @@ use std::thread;
 use std::net::TcpStream;
 
 use capnp::message::{MessageReader, ReaderOptions, MallocMessageBuilder, MessageBuilder};
-use capnp::io::{InputStream, OutputStream, BufferedOutputStreamWrapper};
 use capnp::{serialize_packed, message};
 use capnp::serialize::OwnedSpaceMessageReader;
 
@@ -31,6 +30,143 @@ struct Messenger {
     oqueue: Arc<Mutex<Vec<(MallocMessageBuilder, u32)>>>,
 }
 
+impl Messenger {
+    fn with_connection(client: TcpStream) -> Result<Messenger> {
+        let ostream = Arc::new(Mutex::new(try!(client.try_clone())));
+        let istream = try!(client.try_clone());
+        let oqueue: Arc<Mutex<Vec<(MallocMessageBuilder, u32)>>> = Arc::new(Mutex::new(Vec::new()));
+
+        Ok(Messenger {
+            ostream: ostream,
+            istream: istream,
+            oqueue: oqueue
+        })
+    }
+
+    /**
+     * This function is called on a new thread by the main thread for the
+     * individual client. It will block until a message is recieved or there is an io error and
+     * return the result.
+     */
+    fn recv_message(istream: &mut Read) -> ::capnp::Result<OwnedSpaceMessageReader> {
+        let size = try!({
+            Messenger::read_message_size(istream)
+        });
+
+        // Create a buffer so we can read the message
+        let buf_read = BufReader::new(istream);
+        let mut stream = buf_read.take(size as u64);
+
+        serialize_packed::read_message(&mut stream, ReaderOptions::new())
+    }
+
+    /**
+     * Convert from an OwnedSpaceMessageReader to an actual ProtoBuf message
+     */
+    fn convert_to_message<'b>(reader: &'b OwnedSpaceMessageReader) -> ::capnp::Result<Message::Reader<'b>> {
+        reader.get_root::<Message::Reader>()
+    }
+
+    /// Read the first PREFIX_SIZE bytes from the stream interpreted as big endian
+    /// Return the message size, or an error if there is an io error.
+    fn read_message_size(stream: &mut Read) -> Result<u64> {
+        let stream = stream.take(PREFIX_SIZE as u64);
+
+        let mut length: u64 = 0;
+        let mut byte_count = 0;
+        for result in stream.bytes() {
+            byte_count += 1;
+            match result {
+                Ok(byte) => {
+                    length = length<<8;
+                    length |= byte as u64;
+                },
+                Err(e) => {return Err(e);}
+            }
+        }
+
+        if byte_count != PREFIX_SIZE {
+            return Err(Error::new(ErrorKind::InvalidInput, "Not enough bytes in the stream"));
+        }
+
+        return Ok(length)
+    }
+
+    fn write_message_size(stream: &mut Write, size: u32) -> Result<()> {
+        let mut buffer = [0u8; PREFIX_SIZE];
+
+        let mut size = size;
+        let mask = 0x000000FFu32;
+
+        for i in 0..PREFIX_SIZE {
+            buffer[i] = (size & mask) as u8;
+            size = size >> 8;
+        }
+
+        stream.write_all(& buffer)
+    }
+
+    fn send_message<T: Write>(ostream: &mut T, message: &mut MallocMessageBuilder, message_size: u32) -> Result<()> {
+        Messenger::write_message_size(ostream, message_size);
+        serialize_packed::write_message(ostream, message)
+    }
+
+    pub fn add_to_send_queue(&mut self, message: MallocMessageBuilder, size: u32) {
+        let mut queue = self.oqueue.lock().unwrap();
+        queue.push((message, size));
+    }
+
+    /// This call loops forever, creating a new thread to handle reading from
+    /// the stream. The blocking thread will handle messages as they come in, 
+    /// and write new messages when they are added to the queue.
+    pub fn handle_client_stream(&mut self, stream: TcpStream) -> Result<()> {
+        let ostream = Arc::new(Mutex::new(try!(stream.try_clone())));
+        let mut istream = stream;
+
+        let (tx, rx) = channel();
+
+        thread::spawn(move|| {
+            loop {
+                let m = Messenger::recv_message(&mut istream).unwrap();
+                tx.send(m).unwrap();
+            }
+        });
+
+        loop {
+            {
+                // Send all messages in the queue
+                let mut queue = self.oqueue.lock().unwrap();
+                if queue.len() > 0 {
+                    match ostream.try_lock() {
+                        Ok(guard) => {
+                            let (mut m, s) = queue.pop().unwrap();
+                            let ostream = ostream.clone();
+                            thread::spawn(move|| {
+                                let mut ostream = ostream.lock().unwrap();
+                                Messenger::send_message(&mut *ostream, &mut m, s).unwrap();
+                            });
+                        },
+                        Err(e) => { /* Mutex in use or poisoned... Continue */ }
+                    };
+                }
+            }
+
+            // Try to recieve messages
+            match rx.try_recv() {
+                Ok(r) => {
+                    let message = Messenger::convert_to_message(&r).unwrap();
+                    //TODO: Send to the parser
+                },
+                Err(e) => {
+                    // Do nothing
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/*
 #[allow(dead_code)]
 #[allow(unused_attributes)]
 impl Messenger {
@@ -157,6 +293,7 @@ impl Messenger {
         Ok(())
     }
 }
+*/
 
 
 #[cfg(test)]
@@ -166,8 +303,6 @@ mod test {
 
     use std::io::{Cursor, Result, BufStream, Read, Write};
     use std::net::{TcpStream, TcpListener, SocketAddr};
-    use std::old_io::util::IterReader;
-    use std::old_io::{Reader, Writer};
     use std::sync::mpsc::channel;
     use std::{thread, convert};
 
@@ -178,20 +313,6 @@ mod test {
     use Ack_capnp::ack as Ack;
     use Error_capnp::error as Error;
 
-    #[test]
-    fn test_be_message_prefix() {
-        let num = 0x12345678;
-
-        let mut v = Vec::new();
-        v.write_be_u32(num);
-
-        let mut c = Cursor::new(v);
-
-        match Messenger::read_message_size(&mut c) {
-            Ok(size) => assert_eq!(size, num as u64),
-            Err(e) => panic!(e)
-        };
-    }
 
     #[test]
     #[should_panic]
