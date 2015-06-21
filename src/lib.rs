@@ -6,7 +6,6 @@
 #![feature(old_io)]
 #![feature(collections)]
 extern crate capnp;
-extern crate capnpc;
 
 mod Ack_capnp {
     include!("./schema/Ack_capnp.rs");
