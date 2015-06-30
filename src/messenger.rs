@@ -23,19 +23,19 @@ use ack_capnp::ack as Ack;
 const PREFIX_SIZE: usize = 4;
 
 #[allow(dead_code)]
-struct Messenger {
+struct messenger {
     ostream: Arc<Mutex<TcpStream>>,
     istream: TcpStream,
     oqueue: Arc<Mutex<Vec<MallocMessageBuilder>>>,
 }
 
-impl Messenger {
-    fn with_connection(client: TcpStream) -> Result<Messenger> {
+impl messenger {
+    fn with_connection(client: TcpStream) -> Result<messenger> {
         let ostream = Arc::new(Mutex::new(try!(client.try_clone())));
         let istream = try!(client.try_clone());
         let oqueue: Arc<Mutex<Vec<MallocMessageBuilder>>> = Arc::new(Mutex::new(Vec::new()));
 
-        Ok(Messenger {
+        Ok(messenger {
             ostream: ostream,
             istream: istream,
             oqueue: oqueue
@@ -49,7 +49,7 @@ impl Messenger {
      */
     fn recv_message(istream: &mut Read) -> ::capnp::Result<OwnedSpaceMessageReader> {
         let size = try!({
-            Messenger::read_message_size(istream)
+            messenger::read_message_size(istream)
         });
 
         // Create a buffer so we can read the message
@@ -110,7 +110,7 @@ impl Messenger {
 
     fn send_message<T: Write>(ostream: &mut T, message: &mut MallocMessageBuilder) -> Result<()> {
         let message_size = serialize::compute_serialized_size_in_words(message);
-        Messenger::write_message_size(ostream, message_size as u32);
+        messenger::write_message_size(ostream, message_size as u32);
         serialize::write_message(ostream, message)
     }
 
@@ -131,7 +131,7 @@ impl Messenger {
         // Spawn a new thread to listen to incoming messages
         thread::spawn(move|| {
             loop {
-                let m = Messenger::recv_message(&mut istream).unwrap();
+                let m = messenger::recv_message(&mut istream).unwrap();
                 tx.send(m).unwrap();
             }
         });
@@ -147,7 +147,7 @@ impl Messenger {
                             let ostream = ostream.clone();
                             thread::spawn(move|| {
                                 let mut ostream = ostream.lock().unwrap();
-                                Messenger::send_message(&mut *ostream, &mut m).unwrap();
+                                messenger::send_message(&mut *ostream, &mut m).unwrap();
                             });
                         },
                         Err(e) => { /* Mutex in use or poisoned... Continue */ }
@@ -158,7 +158,7 @@ impl Messenger {
             // Try to recieve messages
             match rx.try_recv() {
                 Ok(r) => {
-                    let message = Messenger::convert_to_message(&r).unwrap();
+                    let message = messenger::convert_to_message(&r).unwrap();
                     //TODO: Send to the parser
                 },
                 Err(e) => {
@@ -174,7 +174,7 @@ impl Messenger {
 #[cfg(test)]
 mod test {
 
-    use super::{Messenger};
+    use super::{messenger};
 
     use std::io::{Cursor, Result, BufStream, Read, Write};
     use std::net::{TcpStream, TcpListener, SocketAddr};
@@ -193,7 +193,7 @@ mod test {
     #[should_panic]
     fn test_invalid_message_prefix() {
         let mut c = Cursor::new(vec![0x12u8]);
-        Messenger::read_message_size(&mut c).unwrap();
+        messenger::read_message_size(&mut c).unwrap();
     }
 
     fn get_single_connection(listener: TcpListener) -> Result<(TcpStream, SocketAddr)> {
@@ -279,10 +279,10 @@ mod test {
 
         let size = size.unwrap().word_count;
         let size2 = serialize::compute_serialized_size_in_words(&mut pimessage);
-        Messenger::send_message(&mut server, &mut pimessage);
+        messenger::send_message(&mut server, &mut pimessage);
 
-        let m = Messenger::recv_message(&mut client).unwrap();
-        let message = Messenger::convert_to_message(&m).unwrap();
+        let m = messenger::recv_message(&mut client).unwrap();
+        let message = messenger::convert_to_message(&m).unwrap();
 
         println!("Size: {} id: {} parser_id: {}", message.total_size().unwrap().word_count, message.get_message_id(), message.get_parser_id());
         assert_eq!(message.total_size().unwrap().word_count, size);
