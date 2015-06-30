@@ -1,6 +1,6 @@
 @0x8737d1e5f070a0af;
 
-using Error = import "Error.capnp".Error;
+using Error = import "error.capnp".Error;
 
 struct Ack {
     messageId @0 :UInt64;

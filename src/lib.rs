@@ -7,15 +7,7 @@
 #![feature(collections)]
 extern crate capnp;
 
-pub mod Ack_capnp {
-    include!("./schema/Ack_capnp.rs");
-}
-pub mod Error_capnp {
-    include!("./schema/Error_capnp.rs");
-}
-pub mod Message_capnp {
-    include!("./schema/Message_capnp.rs");
-}
-pub mod Messenger {
-    include!("./messenger.rs");
-}
+pub mod ack_capnp;
+pub mod error_capnp;
+pub mod message_capnp;
+pub mod messenger;

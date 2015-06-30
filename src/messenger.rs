@@ -17,8 +17,8 @@ use capnp::message::{MessageReader, ReaderOptions, MallocMessageBuilder, Message
 use capnp::{serialize, message};
 use capnp::serialize::OwnedSpaceMessageReader;
 
-use Message_capnp::message as Message;
-use Ack_capnp::ack as Ack;
+use message_capnp::message as Message;
+use ack_capnp::ack as Ack;
 
 const PREFIX_SIZE: usize = 4;
 
