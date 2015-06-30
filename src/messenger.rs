@@ -23,14 +23,14 @@ use ack_capnp::ack as Ack;
 const PREFIX_SIZE: usize = 4;
 
 #[allow(dead_code)]
-struct messenger {
+pub struct messenger {
     ostream: Arc<Mutex<TcpStream>>,
     istream: TcpStream,
     oqueue: Arc<Mutex<Vec<MallocMessageBuilder>>>,
 }
 
 impl messenger {
-    fn with_connection(client: TcpStream) -> Result<messenger> {
+    pub fn with_connection(client: TcpStream) -> Result<messenger> {
         let ostream = Arc::new(Mutex::new(try!(client.try_clone())));
         let istream = try!(client.try_clone());
         let oqueue: Arc<Mutex<Vec<MallocMessageBuilder>>> = Arc::new(Mutex::new(Vec::new()));
@@ -47,7 +47,7 @@ impl messenger {
      * individual client. It will block until a message is recieved or there is an io error and
      * return the result.
      */
-    fn recv_message(istream: &mut Read) -> ::capnp::Result<OwnedSpaceMessageReader> {
+    pub fn recv_message(istream: &mut Read) -> ::capnp::Result<OwnedSpaceMessageReader> {
         let size = try!({
             messenger::read_message_size(istream)
         });
@@ -62,13 +62,13 @@ impl messenger {
     /**
      * Convert from an OwnedSpaceMessageReader to an actual ProtoBuf message
      */
-    fn convert_to_message<'b>(reader: &'b OwnedSpaceMessageReader) -> ::capnp::Result<Message::Reader<'b>> {
+    pub fn convert_to_message<'b>(reader: &'b OwnedSpaceMessageReader) -> ::capnp::Result<Message::Reader<'b>> {
         reader.get_root::<Message::Reader>()
     }
 
     /// Read the first PREFIX_SIZE bytes from the stream interpreted as big endian
     /// Return the message size, or an error if there is an io error.
-    fn read_message_size(stream: &mut Read) -> Result<u64> {
+    pub fn read_message_size(stream: &mut Read) -> Result<u64> {
         let stream = stream.take(PREFIX_SIZE as u64);
 
         // Shift each byte into a u64 up to PREFIX_SIZE bytes
@@ -108,7 +108,7 @@ impl messenger {
         stream.write_all(& buffer)
     }
 
-    fn send_message<T: Write>(ostream: &mut T, message: &mut MallocMessageBuilder) -> Result<()> {
+    pub fn send_message<T: Write>(ostream: &mut T, message: &mut MallocMessageBuilder) -> Result<()> {
         let message_size = serialize::compute_serialized_size_in_words(message);
         messenger::write_message_size(ostream, message_size as u32);
         serialize::write_message(ostream, message)
