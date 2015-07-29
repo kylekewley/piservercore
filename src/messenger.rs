@@ -122,7 +122,7 @@ impl messenger {
     /// This call loops forever, creating a new thread to handle reading from
     /// the stream. The blocking thread will handle messages as they come in, 
     /// and write new messages when they are added to the queue.
-    pub fn handle_client_stream(&mut self) -> Result<()> {
+    pub fn handle_client_stream(&self) -> Result<()> {
         let (tx, rx) = channel();
 
         let mut istream = self.istream.try_clone().unwrap();
