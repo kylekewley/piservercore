@@ -184,9 +184,9 @@ mod test {
     use capnp::{serialize};
     use capnp::{MessageBuilder, MallocMessageBuilder};
 
-    use Message_capnp::message as Message;
-    use Ack_capnp::ack as Ack;
-    use Error_capnp::error as Error;
+    use message_capnp::message as Message;
+    use ack_capnp::ack as Ack;
+    use error_capnp::error as Error;
 
 
     #[test]
