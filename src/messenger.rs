@@ -137,21 +137,23 @@ impl messenger {
 
         loop {
             {
-                // Send all messages in the queue
-                let mut queue = self.oqueue.lock().unwrap();
-                if queue.len() > 0 {
-                    match self.ostream.try_lock() {
-                        Ok(guard) => {
-                            // ostream mutex in a good state
-                            let mut m = queue.pop().unwrap();
-                            let ostream = self.ostream.clone();
-                            thread::spawn(move|| {
-                                let mut ostream = ostream.lock().unwrap();
-                                messenger::send_message(&mut *ostream, &mut m).unwrap();
-                            });
-                        },
-                        Err(e) => { /* Mutex in use or poisoned... Continue */ }
-                    };
+                // Send the first item in the queue
+                let mut message = {
+                    let mut queue = self.oqueue.lock().unwrap();
+                    queue.pop()
+                };
+
+                match message {
+                    Some(mut m) => {
+                        let mut ostream = self.ostream.lock();
+                        match ostream {
+                            Ok(mut guard) => {
+                                messenger::send_message(&mut *guard, &mut m).unwrap();
+                            },
+                            Err(e) => { /* Mutex poisoned */ }
+                        }
+                    },
+                    None => { /* Nothing in the queue */}
                 }
             }
 
