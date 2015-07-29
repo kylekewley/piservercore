@@ -122,11 +122,10 @@ impl messenger {
     /// This call loops forever, creating a new thread to handle reading from
     /// the stream. The blocking thread will handle messages as they come in, 
     /// and write new messages when they are added to the queue.
-    pub fn handle_client_stream(&mut self, stream: TcpStream) -> Result<()> {
-        let ostream = Arc::new(Mutex::new(try!(stream.try_clone())));
-        let mut istream = stream;
-
+    pub fn handle_client_stream(&mut self) -> Result<()> {
         let (tx, rx) = channel();
+
+        let mut istream = self.istream.try_clone().unwrap();
 
         // Spawn a new thread to listen to incoming messages
         thread::spawn(move|| {
@@ -141,10 +140,11 @@ impl messenger {
                 // Send all messages in the queue
                 let mut queue = self.oqueue.lock().unwrap();
                 if queue.len() > 0 {
-                    match ostream.try_lock() {
+                    match self.ostream.try_lock() {
                         Ok(guard) => {
+                            // ostream mutex in a good state
                             let mut m = queue.pop().unwrap();
-                            let ostream = ostream.clone();
+                            let ostream = self.ostream.clone();
                             thread::spawn(move|| {
                                 let mut ostream = ostream.lock().unwrap();
                                 messenger::send_message(&mut *ostream, &mut m).unwrap();
