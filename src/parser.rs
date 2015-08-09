@@ -18,7 +18,7 @@ use ack_capnp::ack as Ack;
 
 pub struct Parser {
     parsers: HashMap<u32, Box<Fn(&Message::Reader) ->
-        Option<MallocMessageBuilder>+Send>>,
+        Option<MallocMessageBuilder>+Send+Sync>>,
 }
 
 impl Parser {
@@ -49,7 +49,7 @@ impl Parser {
       */
 
     pub fn register_parser(&mut self, parser_id: u32, parser: Box<Fn(&Message::Reader) ->
-                           Option<MallocMessageBuilder>+Send>) -> bool {
+                           Option<MallocMessageBuilder>+Send+Sync>) -> bool {
 
         if self.parsers.contains_key(&parser_id) {
             return false;
