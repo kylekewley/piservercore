@@ -9,4 +9,3 @@ pub mod error_capnp;
 pub mod message_capnp;
 pub mod messenger;
 pub mod parser;
-pub mod ConnectionManager;
