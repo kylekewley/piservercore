@@ -20,25 +20,29 @@ use capnp::serialize::OwnedSpaceMessageReader;
 use message_capnp::message as Message;
 use ack_capnp::ack as Ack;
 
+use parser::Parser;
+
 const PREFIX_SIZE: usize = 4;
 
 #[allow(dead_code)]
-pub struct messenger {
+pub struct Messanger {
     ostream: Arc<Mutex<TcpStream>>,
     istream: TcpStream,
     oqueue: Arc<Mutex<Vec<MallocMessageBuilder>>>,
+    parser: Arc<Parser>,
 }
 
-impl messenger {
-    pub fn with_connection(client: TcpStream) -> Result<messenger> {
+impl Messanger {
+    pub fn with_connection(client: TcpStream, parser: Arc<Parser>) -> Result<Messanger> {
         let ostream = Arc::new(Mutex::new(try!(client.try_clone())));
         let istream = try!(client.try_clone());
         let oqueue: Arc<Mutex<Vec<MallocMessageBuilder>>> = Arc::new(Mutex::new(Vec::new()));
 
-        Ok(messenger {
+        Ok(Messanger {
             ostream: ostream,
             istream: istream,
-            oqueue: oqueue
+            oqueue: oqueue,
+            parser: parser
         })
     }
 
@@ -49,7 +53,7 @@ impl messenger {
      */
     pub fn recv_message(istream: &mut Read) -> ::capnp::Result<OwnedSpaceMessageReader> {
         let size = try!({
-            messenger::read_message_size(istream)
+            Messanger::read_message_size(istream)
         });
 
         // Create a buffer so we can read the message
@@ -110,7 +114,7 @@ impl messenger {
 
     pub fn send_message<T: Write>(ostream: &mut T, message: &mut MallocMessageBuilder) -> Result<()> {
         let message_size = serialize::compute_serialized_size_in_words(message);
-        messenger::write_message_size(ostream, message_size as u32);
+        Messanger::write_message_size(ostream, message_size as u32).unwrap();
         serialize::write_message(ostream, message)
     }
 
@@ -122,7 +126,7 @@ impl messenger {
     /// This call loops forever, creating a new thread to handle reading from
     /// the stream. The blocking thread will handle messages as they come in, 
     /// and write new messages when they are added to the queue.
-    pub fn handle_client_stream(&self) -> Result<()> {
+    pub fn handle_client_stream(&mut self) -> Result<()> {
         let (tx, rx) = channel();
 
         let mut istream = self.istream.try_clone().unwrap();
@@ -130,7 +134,7 @@ impl messenger {
         // Spawn a new thread to listen to incoming messages
         thread::spawn(move|| {
             loop {
-                let m = messenger::recv_message(&mut istream).unwrap();
+                let m = Messanger::recv_message(&mut istream).unwrap();
                 tx.send(m).unwrap();
             }
         });
@@ -138,19 +142,19 @@ impl messenger {
         loop {
             {
                 // Send the first item in the queue
-                let mut message = {
+                let message = {
                     let mut queue = self.oqueue.lock().unwrap();
                     queue.pop()
                 };
 
                 match message {
                     Some(mut m) => {
-                        let mut ostream = self.ostream.lock();
+                        let ostream = self.ostream.lock();
                         match ostream {
                             Ok(mut guard) => {
-                                messenger::send_message(&mut *guard, &mut m).unwrap();
+                                Messanger::send_message(&mut *guard, &mut m).unwrap();
                             },
-                            Err(e) => { /* Mutex poisoned */ }
+                            Err(_) => { /* Mutex poisoned */ }
                         }
                     },
                     None => { /* Nothing in the queue */}
@@ -160,23 +164,28 @@ impl messenger {
             // Try to recieve messages
             match rx.try_recv() {
                 Ok(r) => {
-                    let message = messenger::convert_to_message(&r).unwrap();
-                    //TODO: Send to the parser
+                    let message = Messanger::convert_to_message(&r);
+                    match message {
+                        Ok(m) => {
+                            let response = self.parser.parse_message(&m);
+                            if response.is_some() {
+                                self.add_to_send_queue(response.unwrap());
+                            }
+                        },
+                        Err(_) => {}
+                    }
                 },
-                Err(e) => {
+                Err(_) => {
                     // Do nothing
                 }
             }
         }
-
-        // If we get here, the client has closed the connection or there is an error
-        Ok(())
     }
 }
 #[cfg(test)]
 mod test {
 
-    use super::{messenger};
+    use super::{Messanger};
 
     use std::io::{Cursor, Result, BufStream, Read, Write};
     use std::net::{TcpStream, TcpListener, SocketAddr};
@@ -195,7 +204,7 @@ mod test {
     #[should_panic]
     fn test_invalid_message_prefix() {
         let mut c = Cursor::new(vec![0x12u8]);
-        messenger::read_message_size(&mut c).unwrap();
+        Messanger::read_message_size(&mut c).unwrap();
     }
 
     fn get_single_connection(listener: TcpListener) -> Result<(TcpStream, SocketAddr)> {
@@ -281,10 +290,10 @@ mod test {
 
         let size = size.unwrap().word_count;
         let size2 = serialize::compute_serialized_size_in_words(&mut pimessage);
-        messenger::send_message(&mut server, &mut pimessage);
+        Messanger::send_message(&mut server, &mut pimessage);
 
-        let m = messenger::recv_message(&mut client).unwrap();
-        let message = messenger::convert_to_message(&m).unwrap();
+        let m = Messanger::recv_message(&mut client).unwrap();
+        let message = Messanger::convert_to_message(&m).unwrap();
 
         println!("Size: {} id: {} parser_id: {}", message.total_size().unwrap().word_count, message.get_message_id(), message.get_parser_id());
         assert_eq!(message.total_size().unwrap().word_count, size);
