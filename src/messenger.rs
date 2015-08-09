@@ -25,20 +25,20 @@ use parser::Parser;
 const PREFIX_SIZE: usize = 4;
 
 #[allow(dead_code)]
-pub struct Messanger {
+pub struct Messenger {
     ostream: Arc<Mutex<TcpStream>>,
     istream: TcpStream,
     oqueue: Arc<Mutex<Vec<MallocMessageBuilder>>>,
     parser: Arc<Parser>,
 }
 
-impl Messanger {
-    pub fn with_connection(client: TcpStream, parser: Arc<Parser>) -> Result<Messanger> {
+impl Messenger {
+    pub fn with_connection(client: TcpStream, parser: Arc<Parser>) -> Result<Messenger> {
         let ostream = Arc::new(Mutex::new(try!(client.try_clone())));
         let istream = try!(client.try_clone());
         let oqueue: Arc<Mutex<Vec<MallocMessageBuilder>>> = Arc::new(Mutex::new(Vec::new()));
 
-        Ok(Messanger {
+        Ok(Messenger {
             ostream: ostream,
             istream: istream,
             oqueue: oqueue,
@@ -53,7 +53,7 @@ impl Messanger {
      */
     pub fn recv_message(istream: &mut Read) -> ::capnp::Result<OwnedSpaceMessageReader> {
         let size = try!({
-            Messanger::read_message_size(istream)
+            Messenger::read_message_size(istream)
         });
 
         // Create a buffer so we can read the message
@@ -114,7 +114,7 @@ impl Messanger {
 
     pub fn send_message<T: Write>(ostream: &mut T, message: &mut MallocMessageBuilder) -> Result<()> {
         let message_size = serialize::compute_serialized_size_in_words(message);
-        Messanger::write_message_size(ostream, message_size as u32).unwrap();
+        Messenger::write_message_size(ostream, message_size as u32).unwrap();
         serialize::write_message(ostream, message)
     }
 
@@ -134,7 +134,7 @@ impl Messanger {
         // Spawn a new thread to listen to incoming messages
         thread::spawn(move|| {
             loop {
-                let m = Messanger::recv_message(&mut istream).unwrap();
+                let m = Messenger::recv_message(&mut istream).unwrap();
                 tx.send(m).unwrap();
             }
         });
@@ -152,7 +152,7 @@ impl Messanger {
                         let ostream = self.ostream.lock();
                         match ostream {
                             Ok(mut guard) => {
-                                Messanger::send_message(&mut *guard, &mut m).unwrap();
+                                Messenger::send_message(&mut *guard, &mut m).unwrap();
                             },
                             Err(_) => { /* Mutex poisoned */ }
                         }
@@ -164,7 +164,7 @@ impl Messanger {
             // Try to recieve messages
             match rx.try_recv() {
                 Ok(r) => {
-                    let message = Messanger::convert_to_message(&r);
+                    let message = Messenger::convert_to_message(&r);
                     match message {
                         Ok(m) => {
                             let response = self.parser.parse_message(&m);
@@ -185,7 +185,7 @@ impl Messanger {
 #[cfg(test)]
 mod test {
 
-    use super::{Messanger};
+    use super::{Messenger};
 
     use std::io::{Cursor, Result, BufStream, Read, Write};
     use std::net::{TcpStream, TcpListener, SocketAddr};
@@ -204,7 +204,7 @@ mod test {
     #[should_panic]
     fn test_invalid_message_prefix() {
         let mut c = Cursor::new(vec![0x12u8]);
-        Messanger::read_message_size(&mut c).unwrap();
+        Messenger::read_message_size(&mut c).unwrap();
     }
 
     fn get_single_connection(listener: TcpListener) -> Result<(TcpStream, SocketAddr)> {
@@ -290,10 +290,10 @@ mod test {
 
         let size = size.unwrap().word_count;
         let size2 = serialize::compute_serialized_size_in_words(&mut pimessage);
-        Messanger::send_message(&mut server, &mut pimessage);
+        Messenger::send_message(&mut server, &mut pimessage);
 
-        let m = Messanger::recv_message(&mut client).unwrap();
-        let message = Messanger::convert_to_message(&m).unwrap();
+        let m = Messenger::recv_message(&mut client).unwrap();
+        let message = Messenger::convert_to_message(&m).unwrap();
 
         println!("Size: {} id: {} parser_id: {}", message.total_size().unwrap().word_count, message.get_message_id(), message.get_parser_id());
         assert_eq!(message.total_size().unwrap().word_count, size);
