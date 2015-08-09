@@ -46,6 +46,10 @@ impl Messenger {
         })
     }
 
+    pub fn get_oqueue(&self) -> Arc<Mutex<Vec<MallocMessageBuilder>>> {
+        return self.oqueue.clone();
+    }
+
     /**
      * This function is called on a new thread by the main thread for the
      * individual client. It will block until a message is recieved or there is an io error and
