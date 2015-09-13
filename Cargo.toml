@@ -4,4 +4,6 @@ version = "0.0.1"
 authors = ["Kyle Kewley <kylek61294@gmail.com>"]
 
 [dependencies]
-capnp = "0.2.4"
+
+[dependencies.msgpack]
+git = "git@github.com:mneumann/rust-msgpack.git"

@@ -4,7 +4,7 @@
  * Messages are sent out using the Message_capnp struct preceeded by 4 bytes defining the length of
  * the message not including the four bytes. These bytes are sent in big endian byte order.
  */
-extern crate capnp;
+extern crate msgpack;
 
 use std::io::{self, Write, Read, Result, Error, ErrorKind, BufReader, BufRead, BufWriter};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -13,16 +13,16 @@ use std::vec::Vec;
 use std::thread;
 use std::net::TcpStream;
 
-use capnp::message::{MessageReader, ReaderOptions, MallocMessageBuilder, MessageBuilder};
-use capnp::{serialize, message};
-use capnp::serialize::OwnedSpaceMessageReader;
-
-use message_capnp::message as Message;
-use ack_capnp::ack as Ack;
-
 use parser::Parser;
 
 const PREFIX_SIZE: usize = 4;
+
+pub struct Message<T> {
+    ack: bool,
+    m_id: u32,
+    p_id: u32,
+    message: T,
+}
 
 #[allow(dead_code)]
 pub struct Messenger {

@@ -4,29 +4,26 @@
  * message comes in with that ID, it will be passed to the proper function.
  */
 
-extern crate capnp;
+extern crate msgpack;
 
 use std::collections::{HashMap};
 use std::sync::{Arc, Mutex};
 
-use capnp::message::{MessageReader, ReaderOptions, MallocMessageBuilder, MessageBuilder};
-use capnp::{serialize, message};
-use capnp::serialize::OwnedSpaceMessageReader;
+use Messenger::Message;
 
-use message_capnp::message as Message;
-use ack_capnp::ack as Ack;
 
 pub struct Parser {
     parsers: HashMap<u32, Box<Fn(&Message::Reader) ->
         Option<MallocMessageBuilder>+Send+Sync>>,
 }
 
+
 impl Parser {
     pub fn new() -> Parser {
         Parser { parsers: HashMap::new() }
     }
 
-    pub fn parse_message(&self, message: &Message::Reader) -> Option<MallocMessageBuilder> {
+    pub fn parse_message(&self, message: &Message) -> Option<MallocMessageBuilder> {
         let parser_id = message.get_parser_id();
         let f = self.parsers.get(&parser_id);
 
