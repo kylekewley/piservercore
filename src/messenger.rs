@@ -166,7 +166,7 @@ impl Messenger {
             match rx.try_recv() {
                 Ok(r) => {
                     let message: Message = json::decode(&r).unwrap();
-                    let response = self.parser.parse_message(message);
+                    let response = self.parser.parse_message(&message);
                     if response.is_some() {
                         self.add_to_send_queue(response.unwrap());
                     }
