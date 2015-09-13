@@ -180,6 +180,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn serialize_message() {
+    fn send_message() {
     }
 }
