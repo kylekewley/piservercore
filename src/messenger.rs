@@ -57,12 +57,25 @@ impl Messenger {
 
         // Create a buffer so we can read the message
         let buf_read = BufReader::new(istream);
+
+        // Track the remaining bytes for the full message
+        let mut remaining_size = size;
         let mut stream = buf_read.take(size as u64);
 
         let mut recv_str = String::new();
-        let read_len = try!(stream.read_to_string(&mut recv_str));
+        while remaining_size > 0 {
 
-        if read_len != size as usize {
+            let mut tmp = String::new();
+            let read_len = try!(stream.read_to_string(&mut tmp));
+
+            // Concat the new string to the old
+            recv_str = recv_str + &tmp;
+
+            remaining_size -= tmp.len() as u64;
+        }
+
+
+        if remaining_size > 0 {
             return Err(Error::new(ErrorKind::InvalidInput, "Not enough bytes in the stream"));
         }
 
@@ -206,6 +219,26 @@ mod tests {
 
         assert_eq!(read_size, message_size);
         assert_eq!(message, s);
+    }
+
+    #[test]
+    fn test_excess_size() {
+        let cursor = Cursor::new(Vec::new());
+        let mut stream = BufStream::new(cursor);
+
+        let message = "Hello World";
+        let incorrect_size = message.len()+1;
+
+        Messenger::write_message_size(&mut stream, incorrect_size as u32);
+        let write_size = stream.write(message.as_bytes()).unwrap();
+        stream.flush().unwrap();
+
+        stream.get_mut().set_position(0);
+
+        // Read the message out of the stream
+        let serialized_string = Messenger::recv_message(&mut stream).unwrap();
+
+        println!("Decoded String: {}", serialized_string);
     }
 
     fn test_send_message(message: &Message) -> BufStream<Cursor<Vec<u8>>> {
