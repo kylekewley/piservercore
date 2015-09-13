@@ -4,6 +4,8 @@
  * Messages are sent out using the Message_capnp struct preceeded by 4 bytes defining the length of
  * the message not including the four bytes. These bytes are sent in big endian byte order.
  */
+use rustc_serialize::json;
+
 use std::io::{self, Write, Read, Result, Error, ErrorKind, BufReader, BufRead, BufWriter};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -13,6 +15,7 @@ use std::net::TcpStream;
 
 use parser::Parser;
 
+use message::Message;
 const PREFIX_SIZE: usize = 4;
 
 
@@ -56,14 +59,14 @@ impl Messenger {
         let buf_read = BufReader::new(istream);
         let mut stream = buf_read.take(size as u64);
 
-        let mut recv_str = "";
+        let mut recv_str = String::new();
         let read_len = try!(stream.read_to_string(&mut recv_str));
 
-        if (read_len != size) {
+        if read_len != size as usize {
             return Err(Error::new(ErrorKind::InvalidInput, "Not enough bytes in the stream"));
         }
 
-        Ok(recv_str);
+        Ok(recv_str)
     }
 
     /// Read the first PREFIX_SIZE bytes from the stream interpreted as big endian
@@ -112,7 +115,7 @@ impl Messenger {
         let message_str = json::encode(&message).unwrap();
         let message_size = message_str.len();
         Messenger::write_message_size(ostream, message_size as u32).unwrap();
-        ostream.write_all(message.as_bytes())
+        ostream.write_all(message_str.as_bytes())
     }
 
     pub fn add_to_send_queue(&mut self, message: Message) {
@@ -173,5 +176,10 @@ impl Messenger {
     }
 }
 #[cfg(test)]
-mod test {
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serialize_message() {
+    }
 }
