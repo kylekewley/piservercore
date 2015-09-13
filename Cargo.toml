@@ -2,8 +2,3 @@
 name = "piservercore"
 version = "0.0.1"
 authors = ["Kyle Kewley <kylek61294@gmail.com>"]
-
-[dependencies]
-
-[dependencies.msgpack]
-git = "git@github.com:mneumann/rust-msgpack.git"

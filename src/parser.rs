@@ -4,17 +4,15 @@
  * message comes in with that ID, it will be passed to the proper function.
  */
 
-extern crate msgpack;
-
 use std::collections::{HashMap};
 use std::sync::{Arc, Mutex};
 
-use Messenger::Message;
+use message::Message;
 
 
 pub struct Parser {
-    parsers: HashMap<u32, Box<Fn(&Message::Reader) ->
-        Option<MallocMessageBuilder>+Send+Sync>>,
+    parsers: HashMap<u32, Box<Fn(&Message) ->
+        Option<Message>,
 }
 
 
@@ -23,7 +21,7 @@ impl Parser {
         Parser { parsers: HashMap::new() }
     }
 
-    pub fn parse_message(&self, message: &Message) -> Option<MallocMessageBuilder> {
+    pub fn parse_message(&self, message: &Message) -> Option<Message> {
         let parser_id = message.get_parser_id();
         let f = self.parsers.get(&parser_id);
 
@@ -45,8 +43,8 @@ impl Parser {
       * ID
       */
 
-    pub fn register_parser(&mut self, parser_id: u32, parser: Box<Fn(&Message::Reader) ->
-                           Option<MallocMessageBuilder>+Send+Sync>) -> bool {
+    pub fn register_parser(&mut self, parser_id: u32, parser: Box<Fn(&Message) ->
+                           Option<Message>) -> bool {
 
         if self.parsers.contains_key(&parser_id) {
             return false;
