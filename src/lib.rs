@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 extern crate rustc_serialize;
+extern crate bufstream;
 
 pub mod messenger;
 pub mod parser;

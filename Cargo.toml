@@ -5,3 +5,5 @@ authors = ["Kyle Kewley <kylek61294@gmail.com>"]
 
 [dependencies]
 rustc-serialize = "0.3.16"
+
+bufstream = "0.1.1"

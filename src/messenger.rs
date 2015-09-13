@@ -72,24 +72,24 @@ impl Messenger {
     /// Read the first PREFIX_SIZE bytes from the stream interpreted as big endian
     /// Return the message size, or an error if there is an io error.
     pub fn read_message_size(stream: &mut Read) -> Result<u64> {
-        let stream = stream.take(PREFIX_SIZE as u64);
+        let mut stream = stream.take(PREFIX_SIZE as u64);
 
         // Shift each byte into a u64 up to PREFIX_SIZE bytes
         let mut length: u64 = 0;
-        let mut byte_count = 0;
-        for result in stream.bytes() {
-            byte_count += 1;
-            match result {
-                Ok(byte) => {
-                    length = length<<8;
-                    length |= byte as u64;
-                },
-                Err(e) => {return Err(e);}
-            }
+
+        let mut bytes: Vec<u8> = Vec::new();
+        let byte_count = stream.read_to_end(&mut bytes).unwrap();
+
+        bytes.reverse();
+
+        for byte in bytes {
+            length = length<<8;
+            length |= byte as u64;
         }
 
+
         if byte_count != PREFIX_SIZE {
-            return Err(Error::new(ErrorKind::InvalidInput, "Not enough bytes in the stream"));
+            return Err(Error::new(ErrorKind::InvalidInput, "Couldn't read message length from stream"));
         }
 
         return Ok(length)
@@ -115,7 +115,8 @@ impl Messenger {
         let message_str = json::encode(&message).unwrap();
         let message_size = message_str.len();
         Messenger::write_message_size(ostream, message_size as u32).unwrap();
-        ostream.write_all(message_str.as_bytes())
+        ostream.write_all(message_str.as_bytes()).unwrap();
+        ostream.flush()
     }
 
     pub fn add_to_send_queue(&mut self, message: Message) {
@@ -178,8 +179,66 @@ impl Messenger {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use message::Message;
+    use rustc_serialize::{json, Encodable, Decodable};
+    use std::io::{Cursor, Read, Write};
+
+    use bufstream::BufStream;
+    use core_messages::Ping;
+
+    #[test]
+    fn test_write_stream() {
+        let cursor = Cursor::new(Vec::new());
+        let mut stream = BufStream::new(cursor);
+
+        let message = "Hello World";
+        let message_size = message.len();
+
+        let write_size = stream.write(message.as_bytes()).unwrap();
+        stream.flush().unwrap();
+
+        assert_eq!(message_size, write_size);
+
+        stream.get_mut().set_position(0);
+
+        let mut s = String::new();
+        let read_size = stream.read_to_string(&mut s).unwrap();
+
+        assert_eq!(read_size, message_size);
+        assert_eq!(message, s);
+    }
+
+    fn test_send_message(message: &Message) -> BufStream<Cursor<Vec<u8>>> {
+        let cursor = Cursor::new(Vec::new());
+        let mut stream = BufStream::new(cursor);
+
+        Messenger::send_message(&mut stream, &message).unwrap();
+
+        // return the cursor postion back to 0 for reading
+        stream.get_mut().set_position(0);
+
+        stream
+    }
+
+
+    fn generate_ping_message() -> Message {
+        let ping = Ping::new();
+        Message::with_message(&ping, 1)
+    }
+
 
     #[test]
     fn send_message() {
+        let ping = generate_ping_message();
+
+        // Send the message into the stream
+        let mut stream = test_send_message(&ping);
+
+        // Read the message out of the stream
+        let serialized_string = Messenger::recv_message(&mut stream).unwrap();
+
+        let recv_ping: Message = json::decode(&serialized_string).unwrap();
+
+        assert_eq!(ping, recv_ping);
     }
 }

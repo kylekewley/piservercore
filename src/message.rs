@@ -3,6 +3,7 @@
  */
 use rustc_serialize::{json, Encodable, Decodable};
 use std::fmt;
+use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 
 #[derive(RustcDecodable, RustcEncodable, Debug, Eq, PartialEq)]
 pub struct Message {
@@ -12,10 +13,50 @@ pub struct Message {
     message: String, // The actual message payload
 }
 
+static GLOBAL_MESSAGE_ID: AtomicUsize = ATOMIC_USIZE_INIT;
+
 impl Message {
+    pub fn new() -> Message {
+        Message {
+            ack: false,
+            m_id: Message::next_id(),
+            p_id: 0,
+            message: String::new(),
+        }
+    }
+
+    pub fn with_message<T: Encodable>(message: &T, parser_id: u32) -> Message {
+        let encoded_message = json::encode(&message).unwrap();
+        Message {
+            ack: false,
+            m_id: Message::next_id(),
+            p_id: parser_id,
+            message: encoded_message,
+        }
+    }
+
+    pub fn set_ack(&mut self, ack: bool) {
+        self.ack = ack;
+    }
+
+    pub fn set_message<T: Encodable>(&mut self, message: &T) {
+        let encoded_message = json::encode(&message).unwrap();
+        self.message = encoded_message;
+    }
+
+    pub fn set_parser_id(&mut self, parser_id: u32) {
+        self.p_id = parser_id;
+    }
+
+    fn next_id() -> u32 {
+        GLOBAL_MESSAGE_ID.fetch_add(1, Ordering::SeqCst) as u32
+    }
+
+
     pub fn get_parser_id(&self) -> u32 {
         self.p_id
     }
+
 }
 
 mod tests {
@@ -39,7 +80,6 @@ mod tests {
         };
 
         let encoded = json::encode(&pimessage).unwrap();
-        println!("{}", encoded);
 
         let decode: Message = json::decode(&encoded).unwrap();
         let decoded_payload: Ping = json::decode(&decode.message).unwrap();
