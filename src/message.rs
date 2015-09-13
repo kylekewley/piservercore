@@ -35,8 +35,8 @@ impl Message {
         }
     }
 
-    pub fn get_message(&self) -> String {
-        self.message
+    pub fn get_message(&self) -> &String {
+        &self.message
     }
 
     pub fn set_ack(&mut self, ack: bool) {
