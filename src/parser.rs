@@ -11,7 +11,7 @@ use message::Message;
 
 
 pub struct Parser {
-    parsers: HashMap<u32, Box<Fn(&Message) -> Option<Message>+Send+Sync>>
+    parsers: HashMap<u32, Box<Fn(String) -> Option<Message>+Send+Sync>>
 }
 
 
@@ -42,7 +42,7 @@ impl Parser {
       * ID
       */
 
-    pub fn register_parser(&mut self, parser_id: u32, parser: Box<Fn(&Message) ->
+    pub fn register_parser(&mut self, parser_id: u32, parser: Box<Fn(String) ->
                            Option<Message>+Send+Sync>) -> bool {
 
         if self.parsers.contains_key(&parser_id) {

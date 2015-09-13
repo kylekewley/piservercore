@@ -35,6 +35,10 @@ impl Message {
         }
     }
 
+    pub fn get_message(&self) -> String {
+        self.message
+    }
+
     pub fn set_ack(&mut self, ack: bool) {
         self.ack = ack;
     }
@@ -56,7 +60,6 @@ impl Message {
     pub fn get_parser_id(&self) -> u32 {
         self.p_id
     }
-
 }
 
 mod tests {
