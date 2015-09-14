@@ -148,12 +148,14 @@ impl Messenger {
         // Spawn a new thread to listen to incoming messages
         thread::spawn(move|| {
             loop {
+                println!("Loop 1");
                 let m = Messenger::recv_message(&mut istream).unwrap();
                 tx.send(m).unwrap();
             }
         });
 
         loop {
+            println!("Loop 2");
             {
                 // Send the first item in the queue
                 let message = {
