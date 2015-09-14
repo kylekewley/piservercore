@@ -168,7 +168,9 @@ impl Messenger {
                             Ok(mut guard) => {
                                 Messenger::send_message(&mut *guard, &mut m).unwrap();
                             },
-                            Err(_) => { /* Mutex poisoned */ }
+                            Err(_) => { 
+                                return Err(Error::new(ErrorKind::Other, "ostream mutex poisoned"));
+                            }
                         }
                     },
                     None => { /* Nothing in the queue */}
@@ -184,7 +186,9 @@ impl Messenger {
                         self.add_to_send_queue(response.unwrap());
                     }
                 },
-                Err(_) => {}
+                Err(_) => {
+                    return Err(Error::new(ErrorKind::Other, "Error receiving message"));
+                }
             }
         }
     }
