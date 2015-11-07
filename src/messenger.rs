@@ -137,6 +137,10 @@ impl Messenger {
         queue.push(message);
     }
 
+    pub fn shutdown(&self) {
+
+    }
+
     /// This call loops forever, creating a new thread to handle reading from
     /// the stream. The blocking thread will handle messages as they come in, 
     /// and write new messages when they are added to the queue.
@@ -193,6 +197,8 @@ impl Messenger {
                 }
             }
         }
+
+        println!("Exiting without panic");
     }
 }
 #[cfg(test)]

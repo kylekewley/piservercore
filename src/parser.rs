@@ -11,7 +11,7 @@ use message::Message;
 
 
 pub struct Parser {
-    parsers: HashMap<u32, Box<Fn(&String) -> Option<Message>+Send+Sync>>
+    parsers: HashMap<u32, Box<Fn(&String) -> Option<T: Encodable>+Send+Sync>>
 }
 
 
