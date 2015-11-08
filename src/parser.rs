@@ -6,9 +6,7 @@
 
 use std::collections::{HashMap};
 use std::sync::{Arc, Mutex};
-
-use message::Message;
-
+use message::Message; 
 
 pub struct Parser {
     parsers: HashMap<u32, Box<Fn(&String) -> Option<Message>+Send+Sync>>
