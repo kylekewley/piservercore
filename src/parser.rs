@@ -26,10 +26,20 @@ impl Parser {
             let f = f.unwrap();
             let result = f(message.get_message());
 
-            return result;
+            if (result.is_some()) {
+                let mut result = result.unwrap();
+                result.make_reply(message);
+                return Some(result);
+            }
+
+            if (message.get_ack()) {
+                let inner_message = ();
+                let result = Message::with_reply(&inner_message, message);
+                return Some(result);
+            }
         }
 
-        // No parser registered for the ID. Ignore the message
+        // No parser registered for the ID or no reply to message
         None
     }
 

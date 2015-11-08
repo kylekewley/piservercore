@@ -25,11 +25,11 @@ impl Message {
         }
     }
 
-    pub fn with_reply<T: Encodable>(message: &T, message_id: u32) -> Message {
+    pub fn with_reply<T: Encodable>(message: &T, recv_message: &Message) -> Message {
         let encoded_message = json::encode(&message).unwrap();
         Message {
             ack: false,
-            m_id: message_id,
+            m_id: recv_message.get_message_id(),
             p_id: 0,
             message: encoded_message,
         }
@@ -45,12 +45,22 @@ impl Message {
         }
     }
 
+    pub fn make_reply(&mut self, message: &Message) {
+        self.m_id = (message.get_message_id());
+        self.p_id = 0;
+        self.ack = false;
+    }
+
     pub fn get_message(&self) -> &String {
         &self.message
     }
 
     pub fn get_message_id(&self) -> u32 {
         self.m_id
+    }
+
+    pub fn get_ack(&self) -> bool {
+        self.ack
     }
 
     pub fn set_ack(&mut self, ack: bool) {
@@ -66,6 +76,7 @@ impl Message {
     pub fn set_parser_id(&mut self, parser_id: u32) {
         self.p_id = parser_id;
     }
+
 
     fn next_id() -> u32 {
         GLOBAL_MESSAGE_ID.fetch_add(1, Ordering::SeqCst) as u32
